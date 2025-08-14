@@ -73,7 +73,7 @@ static void responsehandle(char *request, int client_fd)
  	{
         	case ROOT: 
 		{
-			const char *res = "HTTP/1.1 200 OK\r\n\r\n";
+			const char *res = "HTTP/1.1 200 OK\r\n\r\n"; //helper function
 			send(client_fd, res, strlen(res), 0);
             		break;
         	}
@@ -110,14 +110,14 @@ static void responsehandle(char *request, int client_fd)
         			send(client_fd, header, h, 0);
         			if (ua_len) send(client_fd, ua, ua_len, 0);
     			} else {
-        		const char *res = "HTTP/1.1 400 Bad Request\r\n\r\n";
+        		const char *res = "HTTP/1.1 400 Bad Request\r\n\r\n"; //helper function
         		send(client_fd, res, strlen(res), 0);
     			}
     		break;
 		}
         	default:
  		{
-            		const char *res = "HTTP/1.1 404 Not Found\r\n\r\n";
+            		const char *res = "HTTP/1.1 404 Not Found\r\n\r\n"; //helper function
             		send(client_fd, res, strlen(res), 0);
             		break;
         	}

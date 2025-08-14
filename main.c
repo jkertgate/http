@@ -57,8 +57,8 @@ static int dequeue(void)
 
 static void responsehandle(char *request, int client_fd) 
 {
-	enum Route { ROOT, ECHO, USER_AGENT, NOT_FOUND } route = NOT_FOUND;
-	if (strncmp(request, "GET / ", 6) == 0)
+	enum Route { ROOT, ECHO, USER_AGENT, NOT_FOUND } route = NOT_FOUND; // use a bitfield instead
+	if (strncmp(request, "GET / ", 6) == 0)  //parse better
 	{
         	route = ROOT;
 	} else if (strncmp(request, "GET /echo/", 10) == 0) {
@@ -69,7 +69,7 @@ static void responsehandle(char *request, int client_fd)
 		route = NOT_FOUND;
 	}
 
-	switch (route)
+	switch (route) //add more functionality
  	{
         	case ROOT: 
 		{
@@ -98,7 +98,7 @@ static void responsehandle(char *request, int client_fd)
 		case USER_AGENT:
 		{
     			char ua[1024] = {0};
-      			if (sscanf(request, "%*[^U]User-Agent: %1023[^\r\n]", ua) == 1) 
+      			if (sscanf(request, "%*[^U]User-Agent: %1023[^\r\n]", ua) == 1) // this is bad. change this before you go to jail
 			{
         			size_t ua_len = strlen(ua);
         			char header[256];
@@ -129,7 +129,7 @@ static void *threadfunction(void *arg)
 	(void)arg;
 	char buf[4096];
 
-	for (;;)
+	for (;;) //again with the infinite loops
 	{
         	pthread_mutex_lock(&mutex);
         	while (head == NULL) 
@@ -163,7 +163,7 @@ int main()
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_len;
 
-	setbuf(stdout, NULL);
+	setbuf(stdout, NULL); //you dont actuually need todo this
 	setbuf(stderr, NULL); 
 
 	for (int i = 0; i < POOL_SIZE; i++)
@@ -205,7 +205,7 @@ int main()
         	return 1;
     	}
 	client_addr_len = sizeof(client_addr);
-	for (;;)
+	for (;;) //please god dont use an infinite loop
 	{
         	client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_addr_len);
         	if (client_fd < 0) 
@@ -218,6 +218,6 @@ int main()
         	pthread_cond_signal(&condition_var);
         	pthread_mutex_unlock(&mutex);
 	}
-	close(server_fd);
-	return 0;
+	close(server_fd); //unused
+	return 0; //unused ctrl c to quit
 }

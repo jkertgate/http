@@ -162,6 +162,7 @@ int main()
 	int server_fd, client_fd;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_len;
+	int connection_backlog = 5;
 
 	setbuf(stdout, NULL); //you dont actuually need todo this
 	setbuf(stderr, NULL); 
@@ -198,7 +199,7 @@ int main()
         	printf("Bind failed: %s \n", strerror(errno));
         	return 1;
 	}
-	int connection_backlog = 5;
+	
 	if (listen(server_fd, connection_backlog) != 0)
     	{
         	printf("Listen failed: %s \n", strerror(errno));

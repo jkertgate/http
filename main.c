@@ -88,12 +88,12 @@ static void responsehandle(char *request, int client_fd)
                              "Content-Type: text/plain\r\n"
                              "Content-Length: %zu\r\n"
                              "\r\n", len);
-		if (h > 0 && h < (int)sizeof(header)) 
-		{
-                	send(client_fd, header, h, 0);
-                	if (len) send(client_fd, msg, len, 0);
-		}
-		break;
+			if (h > 0 && h < (int)sizeof(header)) 
+			{
+                		send(client_fd, header, h, 0);
+                		if (len) send(client_fd, msg, len, 0);
+			}
+			break;
         	}
 		case USER_AGENT:
 		{

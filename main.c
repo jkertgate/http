@@ -166,7 +166,7 @@ int main()
 	setbuf(stdout, NULL); //you dont actuually need todo this
 	setbuf(stderr, NULL); 
 
-	for (int i = 0; i < POOL_SIZE; i++)
+	for (int i = 0; i < POOL_SIZE; i++) 
 	{
 		if (pthread_create(&thread_pool[i], NULL, threadfunction, NULL) != 0)
 		{
@@ -189,7 +189,7 @@ int main()
 
 	struct sockaddr_in serv_addr = {
 					.sin_family = AF_INET ,
-					.sin_port = htons(4221),
+					.sin_port = htons(4221), //dont use port 80
 					.sin_addr = { .s_addr = htonl(INADDR_ANY) },
 					};
 

@@ -124,7 +124,7 @@ static void responsehandle(char *request, int client_fd)
 	}
 }
 
-static void *threadfunction(void *arg) 
+static void *threadfunction(void *arg) //mem leak in here i think
 {
 	(void)arg;
 	char buf[4096];

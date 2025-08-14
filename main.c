@@ -126,7 +126,7 @@ static void responsehandle(char *request, int client_fd)
 
 static void *threadfunction(void *arg) //mem leak in here i think
 {
-	(void)arg;
+	(void)arg; //unsure whyi need todo this but i do
 	char buf[4096];
 
 	for (;;) //again with the infinite loops

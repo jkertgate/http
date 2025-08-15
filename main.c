@@ -85,31 +85,22 @@ static void handle_files_get_path(const char *target, int client_fd)
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
-
-    
-
     if (n < 0 || n >= (int)sizeof(full)) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
-
-
     if (fd < 0) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
-
-
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) 
 	{
         	close(fd);
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
-    	}
-
-   
+    	}   
     h = snprintf(header, sizeof(header),
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/octet-stream\r\n"
@@ -122,32 +113,29 @@ static void handle_files_get_path(const char *target, int client_fd)
         	(void)send(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 40, 0);
         	return;
     	}
-
-
     sent = 0, to_send = (size_t)h;
     while (sent < to_send) 
 	{
-        ssize_t w = send(client_fd, header + sent, to_send - sent, 0);
-        if (w <= 0) 
+        	ssize_t w = send(client_fd, header + sent, to_send - sent, 0);
+        	if (w <= 0) 
 		{ 
 			close(fd);
 	 		return;
 		}
-        sent += (size_t)w;
-    	}
-
-
-    
-    for (;;)
+        	sent += (size_t)w;
+    	}    
+	for (;;)
 	{
-        ssize_t r = read(fd, buf, sizeof(buf));
-        if (r == 0) break;
-        if (r < 0)  break;
-        size_t off = 0;
-        while (off < (size_t)r)
-	{
-            ssize_t w = send(client_fd, buf + off, (size_t)r - off, 0);
-            if (w <= 0)
+        	ssize_t r = read(fd, buf, sizeof(buf));
+        	if (r == 0)
+			break;
+        	if (r < 0)
+			break;
+        	size_t off = 0;
+        	while (off < (size_t)r)
+		{
+        		ssize_t w = send(client_fd, buf + off, (size_t)r - off, 0);
+            		if (w <= 0)
 		{
 			 close(fd);
 		 	return; 
@@ -164,7 +152,7 @@ static void responsehandle(char *request, int client_fd)
 
     	char method[8] = {0}, target[PATH_MAX] = {0};
 
-    	if (sscanf(request, "%7s %1023s", method, target) != 2)
+    if (sscanf(request, "%7s %1023s", method, target) != 2)
 	{
         	(void)send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 28, 0);
         	return;
@@ -174,7 +162,6 @@ static void responsehandle(char *request, int client_fd)
         	(void)send(client_fd, "HTTP/1.1 405 Method Not Allowed\r\n\r\n", 36, 0);
         	return;
     	}
-
     if (strcmp(target, "/") == 0) {
         route = ROOT;
     } else if (strncmp(target, "/echo/", 6) == 0) {
@@ -186,7 +173,6 @@ static void responsehandle(char *request, int client_fd)
     } else {
         route = NOT_FOUND;
     }
-
     switch (route)
     {
         case R_FILE: {
@@ -295,8 +281,6 @@ static void *threadfunction(void *arg) //mem leak in here i think
 	return NULL;
 }
 
-
-
 int main(int ac, char *av[]) 
 {
 
@@ -305,26 +289,25 @@ int main(int ac, char *av[])
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_len;
 	int connection_backlog = 5;
+	char tmp[PATH_MAX];
 
 	setbuf(stdout, NULL); //you dont actuually need todo this
 	setbuf(stderr, NULL); 
 
-    // Parse --directory <path>
-    for (int i = 1; i + 1 < ac; i++) {
-        if (strcmp(av[i], "--directory") == 0) {
-            strncpy(g_dir, av[i+1], sizeof(g_dir) - 1);
-            g_dir[sizeof(g_dir) - 1] = '\0';
-            i++;
-        }
-    }
-
-    // Canonicalize g_dir if possible (optional)
-    char tmp[PATH_MAX];
-    if (realpath(g_dir, tmp)) {
-        strncpy(g_dir, tmp, sizeof(g_dir) - 1);
-        g_dir[sizeof(g_dir) - 1] = '\0';
-    }
-
+    for (int i = 1; i + 1 < ac; i++) 
+	{
+        if (strcmp(av[i], "--directory") == 0)
+		{
+            		strncpy(g_dir, av[i+1], sizeof(g_dir) - 1);
+            		g_dir[sizeof(g_dir) - 1] = '\0';
+            		i++;
+        	}
+    	}
+	if (realpath(g_dir, tmp))
+	{
+	        strncpy(g_dir, tmp, sizeof(g_dir) - 1);
+        	g_dir[sizeof(g_dir) - 1] = '\0';
+    	}
 	for (int i = 0; i < POOL_SIZE; i++) 
 	{
 		if (pthread_create(&thread_pool[i], NULL, threadfunction, NULL) != 0)
@@ -332,7 +315,7 @@ int main(int ac, char *av[])
         		perror("pthread_create");
         		exit(1);
     		}
-    	pthread_detach(thread_pool[i]);   
+    		pthread_detach(thread_pool[i]);   
 	}
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd == -1) 

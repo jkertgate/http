@@ -63,11 +63,15 @@ static int dequeue(void)
 static void handle_files_get_path(const char *target, int client_fd)
 {
 	const char *filename;
-	char full[PATH_MAX];
-	int fd, n;
- 	char header[256];
-	char buf[8192];
+	char full[PATH_MAX], header[256], buf[8192];
+	int fd, n, h;
+   	struct stat st;
+    	size_t sent; 
 
+    	filename = target + 7;
+    	n = snprintf(full, sizeof(full), "%s/%s", g_dir, filename);
+    	fd = open(full, O_RDONLY);
+ 
 
     if (strncmp(target, "/files/", 7) != 0)
 	{
@@ -75,7 +79,7 @@ static void handle_files_get_path(const char *target, int client_fd)
         	return;
     	}
 
-    filename = target + 7;
+
     if (*filename == '\0' || *filename == '/' || strstr(filename, "..")) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
@@ -83,21 +87,21 @@ static void handle_files_get_path(const char *target, int client_fd)
     	}
 
     
-    n = snprintf(full, sizeof(full), "%s/%s", g_dir, filename);
+
     if (n < 0 || n >= (int)sizeof(full)) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
 
-    fd = open(full, O_RDONLY);
+
     if (fd < 0) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
 
-    struct stat st;
+
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) 
 	{
         	close(fd);
@@ -106,7 +110,7 @@ static void handle_files_get_path(const char *target, int client_fd)
     	}
 
    
-    int h = snprintf(header, sizeof(header),
+    h = snprintf(header, sizeof(header),
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/octet-stream\r\n"
         "Content-Length: %lld\r\n"
@@ -120,7 +124,7 @@ static void handle_files_get_path(const char *target, int client_fd)
     	}
 
 
-    size_t sent = 0, to_send = (size_t)h;
+    sent = 0, to_send = (size_t)h;
     while (sent < to_send) 
 	{
         ssize_t w = send(client_fd, header + sent, to_send - sent, 0);
@@ -158,15 +162,18 @@ static void responsehandle(char *request, int client_fd)
 {
     enum Route { R_FILE, ROOT, ECHO, USER_AGENT, NOT_FOUND } route = NOT_FOUND;
 
-    char method[8] = {0}, target[PATH_MAX] = {0};
-    if (sscanf(request, "%7s %1023s", method, target) != 2) {
-        (void)send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 28, 0);
-        return;
-    }
-    if (strcmp(method, "GET") != 0) {
-        (void)send(client_fd, "HTTP/1.1 405 Method Not Allowed\r\n\r\n", 36, 0);
-        return;
-    }
+    	char method[8] = {0}, target[PATH_MAX] = {0};
+
+    	if (sscanf(request, "%7s %1023s", method, target) != 2)
+	{
+        	(void)send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 28, 0);
+        	return;
+    	}
+    if (strcmp(method, "GET") != 0) 
+	{
+        	(void)send(client_fd, "HTTP/1.1 405 Method Not Allowed\r\n\r\n", 36, 0);
+        	return;
+    	}
 
     if (strcmp(target, "/") == 0) {
         route = ROOT;
@@ -186,16 +193,13 @@ static void responsehandle(char *request, int client_fd)
             handle_files_get_path(target, client_fd); // <-- pass parsed path
             break;
         }
-
         case ROOT: {
             const char *res = "HTTP/1.1 200 OK\r\n\r\n";
             (void)send(client_fd, res, strlen(res), 0);
             break;
         }
-
         case ECHO: {
-            // Use the already-parsed target, not request offsets
-            const char *msg = target + 6; // after "/echo/"
+            const char *msg = target + 6; 
             size_t len = strlen(msg);
             char header[256];
             int h = snprintf(header, sizeof(header),
@@ -203,7 +207,8 @@ static void responsehandle(char *request, int client_fd)
                              "Content-Type: text/plain\r\n"
                              "Content-Length: %zu\r\n"
                              "\r\n", len);
-            if (h > 0 && h < (int)sizeof(header)) {
+            if (h > 0 && h < (int)sizeof(header)) 
+		{
                 size_t off = 0;
                 while (off < (size_t)h) {
                     ssize_t w = send(client_fd, header + off, (size_t)h - off, 0);
@@ -211,7 +216,8 @@ static void responsehandle(char *request, int client_fd)
                     off += (size_t)w;
                 }
                 off = 0;
-                while (off < len) {
+                while (off < len) 
+		{
                     ssize_t w = send(client_fd, msg + off, len - off, 0);
                     if (w <= 0) return;
                     off += (size_t)w;
@@ -219,26 +225,28 @@ static void responsehandle(char *request, int client_fd)
             }
             break;
         }
-
-        case USER_AGENT: {
-            // ok to read from the raw request buffer for headers
+        case USER_AGENT: 
+	{            
             char ua[1024] = {0};
-            if (sscanf(request, "%*[^U]User-Agent: %1023[^\r\n]", ua) == 1) {
-                size_t ua_len = strlen(ua);
-                char header[256];
-                int h = snprintf(header, sizeof(header),
-                                 "HTTP/1.1 200 OK\r\n"
-                                 "Content-Type: text/plain\r\n"
-                                 "Content-Length: %zu\r\n"
-                                 "\r\n", ua_len);
+            if (sscanf(request, "%*[^U]User-Agent: %1023[^\r\n]", ua) == 1) 
+		{
+            		size_t ua_len = strlen(ua);
+                	char header[256];
+                	int h = snprintf(header, sizeof(header),
+                        	         "HTTP/1.1 200 OK\r\n"
+                        	         "Content-Type: text/plain\r\n"
+                        	         "Content-Length: %zu\r\n"
+                                	 "\r\n", ua_len);
                 size_t off = 0;
-                while (off < (size_t)h) {
+                while (off < (size_t)h) 
+		{
                     ssize_t w = send(client_fd, header + off, (size_t)h - off, 0);
                     if (w <= 0) return;
                     off += (size_t)w;
                 }
                 off = 0;
-                while (off < ua_len) {
+                while (off < ua_len) 
+		{
                     ssize_t w = send(client_fd, ua + off, ua_len - off, 0);
                     if (w <= 0) return;
                     off += (size_t)w;
@@ -249,7 +257,8 @@ static void responsehandle(char *request, int client_fd)
             break;
         }
 
-        default: {
+        default:
+	{
             const char *res = "HTTP/1.1 404 Not Found\r\n\r\n";
             (void)send(client_fd, res, strlen(res), 0);
             break;
@@ -259,7 +268,7 @@ static void responsehandle(char *request, int client_fd)
 
 static void *threadfunction(void *arg) //mem leak in here i think
 {
-	(void)arg; //unsure whyi need todo this but i do
+	(void)arg; 
 	char buf[4096];
 
 	for (;;) //again with the infinite loops

@@ -76,10 +76,6 @@ static void handle_files_get_path(const char *target, int client_fd)
    	struct stat st;
     	size_t sent, to_send; 
 
-    
-    	
- 
-
     if (strncmp(target, "/files/", 7) != 0) {
         (void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         return;

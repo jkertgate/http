@@ -167,7 +167,7 @@ static inline unsigned route_mask(const char *t)
 
 static void responsehandle(char *request, int client_fd)
 {
-    char method[8] = {0}, target[PATH_MAX] = {0};
+    char method[8] = {0}, target[1024] = {0};
 
     if (sscanf(request, "%7s %1023s", method, target) != 2) 
 	{

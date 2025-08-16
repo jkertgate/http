@@ -8,9 +8,14 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <pthread.h>
 
 #define POOL_SIZE 20
+#define ROOT   (1u<<0)
+#define ECHO   (1u<<1)
+#define FILES  (1u<<2)
+#define UA     (1u<<3)
 
 typedef struct node {
     int client_fd;
@@ -26,6 +31,9 @@ static char g_dir[PATH_MAX] = ".";
 pthread_t thread_pool[POOL_SIZE];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  condition_var = PTHREAD_COND_INITIALIZER;
+
+
+struct sockaddr_in serv_addr;
 
 static void enqueue(int client_fd) 
 {
@@ -62,34 +70,33 @@ static int dequeue(void)
 
 static void handle_files_get_path(const char *target, int client_fd)
 {
-	const char *filename;
+	const char *filename = target + 7;
 	char full[PATH_MAX], header[256], buf[8192];
 	int fd, n, h;
    	struct stat st;
-    	size_t sent; 
+    	size_t sent, to_send; 
 
-    	filename = target + 7;
-    	n = snprintf(full, sizeof(full), "%s/%s", g_dir, filename);
-    	fd = open(full, O_RDONLY);
+    
+    	
  
 
-    if (strncmp(target, "/files/", 7) != 0)
-	{
-        	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
-        	return;
-    	}
+    if (strncmp(target, "/files/", 7) != 0) {
+        (void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
+        return;
+    }
+    
+    if (*filename == '\0' || *filename == '/' || strstr(filename, "..")) {
+        (void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
+        return;
+    }
 
-
-    if (*filename == '\0' || *filename == '/' || strstr(filename, "..")) 
-	{
-        	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
-        	return;
-    	}
+    n = snprintf(full, sizeof(full), "%s/%s", g_dir, filename);
     if (n < 0 || n >= (int)sizeof(full)) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
         	return;
     	}
+	 fd = open(full, O_RDONLY);
     if (fd < 0) 
 	{
         	(void)send(client_fd, "HTTP/1.1 404 Not Found\r\n\r\n", 26, 0);
@@ -113,7 +120,8 @@ static void handle_files_get_path(const char *target, int client_fd)
         	(void)send(client_fd, "HTTP/1.1 500 Internal Server Error\r\n\r\n", 40, 0);
         	return;
     	}
-    sent = 0, to_send = (size_t)h;
+    	sent = 0; 
+	to_send = (size_t)h;
     while (sent < to_send) 
 	{
         	ssize_t w = send(client_fd, header + sent, to_send - sent, 0);
@@ -146,45 +154,54 @@ static void handle_files_get_path(const char *target, int client_fd)
     close(fd);
 }
 
+static inline unsigned route_mask(const char *t)
+{
+    if (!t || t[0] != '/') 
+	return 0u;
+    if (t[1] == '\0')
+      return ROOT;                  
+    if (strncmp(t + 1, "echo/", 5) == 0) 
+	return ECHO;   
+    if (strncmp(t + 1, "files/", 6) == 0) 
+	return FILES;  
+    if (strcmp (t + 1, "user-agent")  == 0) 
+	return UA;        
+    return 0u;
+}
+
 static void responsehandle(char *request, int client_fd)
 {
-    enum Route { R_FILE, ROOT, ECHO, USER_AGENT, NOT_FOUND } route = NOT_FOUND;
+    char method[8] = {0}, target[PATH_MAX] = {0};
 
-    	char method[8] = {0}, target[PATH_MAX] = {0};
-
-    if (sscanf(request, "%7s %1023s", method, target) != 2)
+    if (sscanf(request, "%7s %1023s", method, target) != 2) 
 	{
         	(void)send(client_fd, "HTTP/1.1 400 Bad Request\r\n\r\n", 28, 0);
         	return;
     	}
-    if (strcmp(method, "GET") != 0) 
+    if (memcmp(method, "GET", 3) != 0 || method[3] != '\0')
 	{
         	(void)send(client_fd, "HTTP/1.1 405 Method Not Allowed\r\n\r\n", 36, 0);
         	return;
     	}
-    if (strcmp(target, "/") == 0) {
-        route = ROOT;
-    } else if (strncmp(target, "/echo/", 6) == 0) {
-        route = ECHO;
-    } else if (strcmp(target, "/user-agent") == 0) {
-        route = USER_AGENT;
-    } else if (strncmp(target, "/files/", 7) == 0) {
-        route = R_FILE;
-    } else {
-        route = NOT_FOUND;
-    }
-    switch (route)
+
+    unsigned m = route_mask(target);
+    switch (m)
     {
-        case R_FILE: {
-            handle_files_get_path(target, client_fd); // <-- pass parsed path
-            break;
-        }
-        case ROOT: {
-            const char *res = "HTTP/1.1 200 OK\r\n\r\n";
-            (void)send(client_fd, res, strlen(res), 0);
-            break;
-        }
-        case ECHO: {
+        case ROOT:   
+	{
+		const char *res = "HTTP/1.1 200 OK\r\n\r\n";
+		send(client_fd, res, strlen(res), 0);
+		break;
+	}
+	
+	 case FILES:
+	{
+	 	handle_files_get_path(target, client_fd);
+	 	break; 
+	}
+  
+        case ECHO:
+	{
             const char *msg = target + 6; 
             size_t len = strlen(msg);
             char header[256];
@@ -211,7 +228,7 @@ static void responsehandle(char *request, int client_fd)
             }
             break;
         }
-        case USER_AGENT: 
+        case UA: 
 	{            
             char ua[1024] = {0};
             if (sscanf(request, "%*[^U]User-Agent: %1023[^\r\n]", ua) == 1) 
@@ -242,17 +259,16 @@ static void responsehandle(char *request, int client_fd)
             }
             break;
         }
-
-        default:
-	{
-            const char *res = "HTTP/1.1 404 Not Found\r\n\r\n";
-            (void)send(client_fd, res, strlen(res), 0);
-            break;
-        }
+    default:
+	{ 
+	const char *res = "HTTP/1.1 404 Not Found\r\n\r\n"; 
+	send(client_fd, res, strlen(res), 0); 
+	break;
+	}
     }
 }
 
-static void *threadfunction(void *arg) //mem leak in here i think
+static void *threadfunction(void *arg) 
 {
 	(void)arg; 
 	char buf[4096];
@@ -274,7 +290,6 @@ static void *threadfunction(void *arg) //mem leak in here i think
                 		buf[n] = '\0';
                 		responsehandle(buf, client_fd);
 			}
-		shutdown(client_fd, SHUT_WR);
 		close(client_fd);
 		}
 	}
@@ -286,15 +301,17 @@ int main(int ac, char *av[])
 
 	int reuse = 1;
 	int server_fd, client_fd;
-	struct sockaddr_in client_addr;
-	socklen_t client_addr_len;
-	int connection_backlog = 5;
 	char tmp[PATH_MAX];
 
-	setbuf(stdout, NULL); //you dont actuually need todo this
-	setbuf(stderr, NULL); 
+ 	signal(SIGPIPE, SIG_IGN);
 
-    for (int i = 1; i + 1 < ac; i++) 
+    	memset(&serv_addr, 0, sizeof(serv_addr));
+    	serv_addr.sin_family      = AF_INET;
+    	serv_addr.sin_port        = htons(4221);
+    	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+
+    for (int i = 1; i + 1 < ac; i++) 										//find directory
 	{
         if (strcmp(av[i], "--directory") == 0)
 		{
@@ -308,7 +325,7 @@ int main(int ac, char *av[])
 	        strncpy(g_dir, tmp, sizeof(g_dir) - 1);
         	g_dir[sizeof(g_dir) - 1] = '\0';
     	}
-	for (int i = 0; i < POOL_SIZE; i++) 
+	for (int i = 0; i < POOL_SIZE; i++) 									//thread pool
 	{
 		if (pthread_create(&thread_pool[i], NULL, threadfunction, NULL) != 0)
 		{
@@ -317,7 +334,7 @@ int main(int ac, char *av[])
     		}
     		pthread_detach(thread_pool[i]);   
 	}
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	server_fd = socket(AF_INET, SOCK_STREAM, 0); 								//socket
 	if (server_fd == -1) 
 	{
 		printf("Socket creation failed: %s...\n", strerror(errno));
@@ -329,27 +346,22 @@ int main(int ac, char *av[])
 		return 1;
 	}
 
-	struct sockaddr_in serv_addr = {
-					.sin_family = AF_INET ,
-					.sin_port = htons(4221), //dont use port 80
-					.sin_addr = { .s_addr = htonl(INADDR_ANY) },
-					};
 
-	if (bind(server_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != 0)
+	if (bind(server_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != 0)				//bind
 	{
         	printf("Bind failed: %s \n", strerror(errno));
         	return 1;
 	}
 	
-	if (listen(server_fd, connection_backlog) != 0)
+	if (listen(server_fd, 5) != 0)
     	{
         	printf("Listen failed: %s \n", strerror(errno));
         	return 1;
     	}
-	client_addr_len = sizeof(client_addr);
-	for (;;) //please god dont use an infinite loop
+
+	for (;;) 												//intial loop
 	{
-        	client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_addr_len);
+        	client_fd = accept(server_fd, NULL, NULL);
         	if (client_fd < 0) 
 		{
 			perror("except");
@@ -361,5 +373,5 @@ int main(int ac, char *av[])
         	pthread_mutex_unlock(&mutex);
 	}
 	close(server_fd); //unused
-	return 0; //unused ctrl c to quit
+	return 0; 												//unused ctrl c to quit
 }
